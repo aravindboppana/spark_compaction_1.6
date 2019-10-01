@@ -14,8 +14,9 @@ Example 2: Strategy: overwrite
 
 compaction() {
 
-    SOURCE_LOCATION_HDFS="$1"
-    TARGET_LOCATION_HDFS="$2"
+    COMPACTION_STRATEGY="$1"
+    SOURCE_LOCATION_HDFS="$2"
+    TARGET_LOCATION_HDFS="$3"
     APP_NAME=`cat "$APPLICATION_CONF_FILE" | python -c "import json,sys;obj=json.load(sys.stdin);print obj['spark']['app_name'];"`
     SPARK_MASTER=`cat "$APPLICATION_CONF_FILE" | python -c "import json,sys;obj=json.load(sys.stdin);print obj['spark']['master'];"`
     SPARK_EXECUTOR_INSTANCES=`cat "$APPLICATION_CONF_FILE" | python -c "import json,sys;obj=json.load(sys.stdin);print obj['spark']['spark_executor_instances'];"`
@@ -26,21 +27,22 @@ compaction() {
     echo "APP_NAME: ${APP_NAME}"
 
     if [[ -z "${TARGET_DATA_LOCATION}" ]]; then
-        echo "Launching Spark Streaming Application in Yarn Client Mode"
-        SPARK_SUBMIT_STARTUP_CMD="spark-submit --master yarn-client --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --driver-class-path ${CONF_DIR} --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${SOURCE_LOCATION_HDFS}"
+        if [[ "${SPARK_MASTER}" == "cluster" ]]; then
+            echo "Launching Spark Streaming Application in Yarn Cluster Mode"
+            SPARK_SUBMIT_STARTUP_CMD="spark-submit --keytab ${KEYTAB_LOCATION} --principal ${KERBEROS_PRINCIPAL} --master yarn-cluster --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --name ${APP_NAME} --files ${CONF_DIR}/application_configs.json --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${COMPACTION_STRATEGY} ${SOURCE_LOCATION_HDFS}"
+        else
+            echo "Launching Spark Streaming Application in Yarn Client Mode"
+            SPARK_SUBMIT_STARTUP_CMD="spark-submit --master yarn-client --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --driver-class-path ${CONF_DIR} --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${SOURCE_LOCATION_HDFS}"
+        fi
     else
-        echo "Launching Spark Streaming Application in Yarn Client Mode"
-        SPARK_SUBMIT_STARTUP_CMD="spark-submit --master yarn-client --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --driver-class-path ${CONF_DIR} --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${SOURCE_LOCATION_HDFS} ${TARGET_LOCATION_HDFS}"
+        if [[ "${SPARK_MASTER}" == "cluster" ]]; then
+            echo "Launching Spark Streaming Application in Yarn Cluster Mode"
+            SPARK_SUBMIT_STARTUP_CMD="spark-submit --keytab ${KEYTAB_LOCATION} --principal ${KERBEROS_PRINCIPAL} --master yarn-cluster --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --name ${APP_NAME} --files ${CONF_DIR}/application_configs.json --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${COMPACTION_STRATEGY} ${SOURCE_LOCATION_HDFS} ${TARGET_LOCATION_HDFS}"
+        else
+            echo "Launching Spark Streaming Application in Yarn Client Mode"
+            SPARK_SUBMIT_STARTUP_CMD="spark-submit --master yarn-client --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --driver-class-path ${CONF_DIR} --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${COMPACTION_STRATEGY} ${SOURCE_LOCATION_HDFS} ${TARGET_LOCATION_HDFS}"
+        fi
     fi
-
-#    if [ "${SPARK_MASTER}" = "yarn-client" ]; then
-#            echo "Launching Spark Streaming Application in Yarn Client Mode"
-#            SPARK_SUBMIT_STARTUP_CMD="nohup ${SPARK_SUBMIT_CMD} --master yarn --deploy-mode client --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --driver-class-path ${CONF_DIR}:${JAR_FILE_LOCATION} --class ${CLASS_NAME} ${JAR_FILE_LOCATION} &> ${LOG_FILE} &"
-#    elif [ "${SPARK_MASTER}" = "yarn-cluster" ]; then
-#            echo "Launching Spark Streaming Application in Yarn Cluster Mode"
-#            SPARK_SUBMIT_STARTUP_CMD="nohup ${SPARK_SUBMIT_CMD} --keytab ${KEYTAB_LOCATION} --principal ${KERBEROS_PRINCIPAL} --master yarn --deploy-mode cluster --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --name ${APP_NAME} --files ${CONF_DIR}/application.json --class ${CLASS_NAME} ${JAR_FILE_LOCATION} &> ${LOG_FILE} &"
-#    fi
-
 
     echo "executing: ${SPARK_SUBMIT_STARTUP_CMD}"
     eval ${SPARK_SUBMIT_STARTUP_CMD}
@@ -48,7 +50,6 @@ compaction() {
     if [[ $? -ne 0 ]]; then
         exit 0
     fi
-
 
 }
 
@@ -61,7 +62,6 @@ invalidate_metadata_and_compute_stats() {
     impala-shell -q "COMPUTE STATS ${DATABASE_NAME}.${TABLE_NAME}"
     impala-shell -q "DESCRIBE EXTENDED ${DATABASE_NAME}.${TABLE_NAME}"
     impala-shell -q "SHOW TABLE STATS ${DATABASE_NAME}.${TABLE_NAME}"
-
 
 }
 
@@ -125,7 +125,7 @@ if [[ "${COMPACTION_STRATEGY}" == "new" ]]; then
 
     echo "Starting Compaction"
 
-    compaction "${SOURCE_DATA_LOCATION}" "${TARGET_DATA_LOCATION}"
+    compaction "${COMPACTION_STRATEGY}" "${SOURCE_DATA_LOCATION}" "${TARGET_DATA_LOCATION}"
 
     if [[ $? -ne 0 ]]; then
         echo "Compaction Failed"
@@ -152,7 +152,7 @@ if [[ "${COMPACTION_STRATEGY}" == "new" ]]; then
 elif [[ "${COMPACTION_STRATEGY}" = "overwrite" ]]; then
 
     impala-shell -q "SHOW TABLE STATS ${SOURCE_DB_NAME}.${SOURCE_TABLE_NAME}"
-    compaction "${SOURCE_DATA_LOCATION}"
+    compaction "${COMPACTION_STRATEGY}" "${SOURCE_DATA_LOCATION}"
 
     SOURCE_TABLE_COUNT_BEFORE_COMPACTION="$(impala-shell -q 'select count(*) from '${SOURCE_DB_NAME}.${SOURCE_TABLE_NAME}'' -B)"
 

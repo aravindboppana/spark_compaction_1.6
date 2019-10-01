@@ -1,6 +1,6 @@
 {
   "spark": {
-    "master": "local[*]",
+    "master": "client",
     "spark_executor_instances": 4,
     "spark_executor_memory": "4g",
     "app_name": "SPARK_COMPACTION"
