@@ -32,7 +32,7 @@ compaction() {
             SPARK_SUBMIT_STARTUP_CMD="spark-submit --keytab ${KEYTAB_LOCATION} --principal ${KERBEROS_PRINCIPAL} --master yarn-cluster --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --name ${APP_NAME} --files ${CONF_DIR}/application_configs.json --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${COMPACTION_STRATEGY} ${SOURCE_LOCATION_HDFS}"
         else
             echo "Launching Spark Streaming Application in Yarn Client Mode"
-            SPARK_SUBMIT_STARTUP_CMD="spark-submit --master yarn-client --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --driver-class-path ${CONF_DIR} --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${SOURCE_LOCATION_HDFS}"
+            SPARK_SUBMIT_STARTUP_CMD="spark-submit --master yarn-client --num-executors ${SPARK_EXECUTOR_INSTANCES} --executor-memory ${SPARK_EXECUTOR_MEMORY} --driver-class-path ${CONF_DIR} --class com.clairvoyant.insight.bigdata.SparkCompaction_V1 ${JAR_FILE_LOCATION} ${COMPACTION_STRATEGY} ${SOURCE_LOCATION_HDFS}"
         fi
     else
         if [[ "${SPARK_MASTER}" == "cluster" ]]; then
