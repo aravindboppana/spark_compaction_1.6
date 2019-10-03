@@ -104,6 +104,8 @@ object SparkCompaction_V1 {
 
         val df: DataFrame = sqlContext.read.parquet(SOURCE_DATA_LOCATION_HDFS)
 
+        sqlContext.setConf("spark.sql.parquet.compression.codec",COMPRESSION)
+
         if (COMPACTION_STRATEGY == "overwrite") {
             LOGGER.info("Overwriting Strategy")
             df.coalesce(NUM_FILES).write.mode("overwrite").parquet(SOURCE_DATA_LOCATION_HDFS + "_temp")
